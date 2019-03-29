@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.03.29.02
+// @version          2019.03.29.03
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -49,13 +49,13 @@
         'gmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?google\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*', "ig"),
         'bingurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?bing\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'openstreetmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?openstreetmap\.org\/(?:.*?\/)?#map[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
-        'pluscodeurl': new RegExp('(?:http(?:s):\/\/)?plus.codes\/[-a-zA-Z0-9+]*', "ig"),
-        'what3wordsurl': new RegExp('(?:http(?:s):\/\/)?(?:w3w\.co|map\.what3words\.com)\/(.*\..*\..*)', "ig"),
+        'pluscodeurl': new RegExp('(?:http(?:s):\\/\\/)?plus\\.codes\\/([a-zA-Z0-9+]*)'),
+        'what3wordsurl': new RegExp('(?:http(?:s):\\/\\/)?(?:w3w\\.co|map\\.what3words\\.com)\\/(.*\\..*\\..*)', "ig"),
         'place_mc_id': new RegExp('\d*\.\d*.\d*', "ig"),
         'segmentid': new RegExp('\d*'),
         'mandrillappurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.)?mandrillapp\.com\/(?:.*?\/)?www\.waze\.com[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*_(.*)', "ig"),
-        'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig")
-        //'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,2}') //Creating a RegExp object with escape characters does not work for some reason - they are stripped and the remaining character treated like normal
+        'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
+        'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}')
     };
 
     function enhanceSearch(){
@@ -158,7 +158,7 @@
         }
         else if(pasteVal.match(regexs.what3wordsurl)){
             try{
-                let words = pasteVal.match(/(?:http(?:s):\/\/)?(?:w3w\.co|map\.what3words\.com)\/(.*\..*\..*)/)[1];
+                let words = pasteVal.match(regexs.what3wordsurl)[1];
                 let result = await $.get(`https://api.what3words.com/v3/convert-to-coordinates?words=${words}&key=7ZWY99SE`);
                 jump4326(result.coordinates.lng, result.coordinates.lat);
                 processed = true;
@@ -167,7 +167,7 @@
             }
         }
         else if(pasteVal.match(regexs.pluscodeurl)){
-            let code = pasteVal.match(/(?:http(?:s):\/\/)?plus.codes\/([-a-zA-Z0-9+]*)/)[1];
+            let code = pasteVal.match(regexs.pluscodeurl)[1];
             try{
                 let result = await $.get(`https://plus.codes/api?address=${encodeURIComponent(code)}`);
                 let loc = result.plus_code.geometry.location;
@@ -177,7 +177,7 @@
                 console.log(err);
             }
         }
-        else if(pasteVal.match(/^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,2}/)){ //plus code directly pasted
+        else if(pasteVal.match(regexs.pluscode)){ //plus code directly pasted
             try{
                 let result = await $.get(`https://plus.codes/api?address=${encodeURIComponent(pasteVal)}`);
                 let loc = result.plus_code.geometry.location;
