@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.01.01
+// @version          2019.04.01.02
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -103,14 +103,15 @@
         if(query.match(regexs.regexHighlight)){
             let highlights=[];
             let regexFlag = "";
-            if(query.length < 2)
-                return;
 
             if(query[query.length-1] === "i"){
                 regexFlag = "i";
                 query=query.slice(0, -1);
             }
             query = query.substring(1, query.length-1);
+            
+            if(query.length < 2)
+                return;
             WazeWrap.Events.unregister('moveend', window, regexHighlight);
             WazeWrap.Events.register('moveend', window, regexHighlight);
             WazeWrap.Events.unregister('zoomend', window, regexHighlight);
