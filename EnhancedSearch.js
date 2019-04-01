@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.03.29.03
+// @version          2019.04.01.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,6 +27,19 @@
 (function() {
     'use strict';
 
+    var updateMessage = "Regular expression (regex) highlighting is now possible!  With regex highlighting your searches must start and end with '/'.  Example: /McDonald's/  <br><br>If you want your search to be case insensitive you can append the 'i' flag to the end:  /mcdonald's/i  <br><br>  This will search all segments and Places checking both the primary and alternate names.";
+
+    var WMEESLayer;
+    var style = new OL.Style({
+        strokeColor: "#ee9900",
+        strokeDashstyle: "none",
+        strokeLinecap: "round",
+        strokeWidth: 18,
+        strokeOpacity: 0.55,
+        fill: false,
+        pointRadius: 6
+    });
+
     function bootstrap(tries = 1) {
         if (W && W.map &&
             W.model && W.loginManager.user &&
@@ -42,6 +55,8 @@
     function init(){
         //init function in case we need to set up a tab for configuration.  I don't want to do it.  Don't make me.
         enhanceSearch();
+
+        WazeWrap.Interface.ShowScriptUpdate("WME Enhanced Search", GM_info.script.version, updateMessage, "https://greasyfork.org/en/scripts/381111-wme-enhanced-search", "https://www.waze.com/forum/viewtopic.php?f=819&t=279778");
     }
 
     var regexs = {
@@ -55,13 +70,14 @@
         'segmentid': new RegExp('\d*'),
         'mandrillappurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.)?mandrillapp\.com\/(?:.*?\/)?www\.waze\.com[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*_(.*)', "ig"),
         'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
-        'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}')
+        'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
+        'regexHighlight': new RegExp('^(\\/.*?\\/i?)')
     };
 
     function enhanceSearch(){
         $('.search-query')[0].removeEventListener('paste', readPaste, false);
         $('.search-query')[0].addEventListener('paste', readPaste, false);
-        $('.search-query').css("border", "#2f799b 2px solid");
+        $('.search-query').css({"border": "#2f799b 2px solid", "margin-right":"2px"});
         $('.search-query').on("dragover", function(event) {
             event.preventDefault();
             event.stopPropagation();
@@ -72,6 +88,96 @@
             event.stopPropagation();
             drop(event);
         });
+
+        $('.search-query').keyup(regexHighlight);
+    }
+
+    function onScreen(obj) {
+        if (obj.geometry)
+            return(W.map.getExtent().intersectsBounds(obj.geometry.getBounds()));
+        return(false);
+    }
+
+    function regexHighlight(){
+        let query = $('.search-query')[0].value;
+        if(query.match(regexs.regexHighlight)){
+            let highlights=[];
+            let regexFlag = "";
+            if(query.length < 2)
+                return;
+
+            if(query[query.length-1] === "i"){
+                regexFlag = "i";
+                query=query.slice(0, -1);
+            }
+            query = query.substring(1, query.length-1);
+            WazeWrap.Events.unregister('moveend', window, regexHighlight);
+            WazeWrap.Events.register('moveend', window, regexHighlight);
+            WazeWrap.Events.unregister('zoomend', window, regexHighlight);
+            WazeWrap.Events.register('zoomend', window, regexHighlight);
+
+            let onscreenSegments = WazeWrap.Model.getOnscreenSegments();
+            for(let i = 0; i < onscreenSegments.length; i++){
+                if(onscreenSegments[i].attributes.primaryStreetID){
+                    let st = W.model.streets.getObjectById(onscreenSegments[i].attributes.primaryStreetID);
+                    if(st.name && st.name.match(new RegExp(query, regexFlag)))
+                        highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                    else{
+                        if(onscreenSegments[i].attributes.streetIDs){
+                            let alts = onscreenSegments[i].attributes.streetIDs;
+                            for(let j=0; j < alts.length; j++){
+                                let altSt = W.model.streets.getObjectById(alts[j]);
+                                if(altSt.name.match(new RegExp(query, regexFlag))){
+                                    highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let onscreenVenues = [];
+            $.each(W.model.venues.objects, function(k, v){
+                if(onScreen(v))
+                    onscreenVenues.push(v);
+            });
+
+            for(let i = 0; i < onscreenVenues.length; i++){
+                if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag)))
+                    highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                else if(onscreenVenues[i].attributes.aliases){
+                    let aliases = onscreenVenues[i].attributes.aliases;
+                    for(let j=0; j< aliases.length; j++){
+                        if(aliases[j].match(new RegExp(query, regexFlag)))
+                            highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                        break;
+                    }
+                }
+            }
+            if(highlights.length > 0){
+                if(!WMEESLayer)
+                    WMEESLayer = new OL.Layer.Vector("WME_Enhanced_Search",{displayInLayerSwitcher: false, uniqueName: "__WME_Enhanced_Search", styleMap: new OL.StyleMap(style)});
+
+                WMEESLayer.removeAllFeatures();
+                WMEESLayer.addFeatures(highlights);
+                if(W.map.getLayersByName(["WME_Enhanced_Search"]).length === 0)
+                    W.map.addLayer(WMEESLayer);
+            }
+            else
+                if(WMEESLayer && WMEESLayer.features.length>0){
+                    WMEESLayer.removeAllFeatures();
+                    WazeWrap.Events.unregister('moveend', window, regexHighlight);
+                    WazeWrap.Events.unregister('zoomend', window, regexHighlight);
+                }
+        }
+        else{
+            WazeWrap.Events.unregister('moveend', window, regexHighlight);
+            WazeWrap.Events.unregister('zoomend', window, regexHighlight);
+            if(WMEESLayer){
+                WMEESLayer.removeAllFeatures();
+                W.map.removeLayer(WMEESLayer);
+            }
+        }
     }
 
     function drop(ev) {
@@ -82,7 +188,8 @@
 
     async function readPaste(){
         let pasteVal = await navigator.clipboard.readText();
-        parsePaste(pasteVal);
+        if(!pasteVal.match(regexs.regexHighlight)) //don't try and parse if it matches the regex highlight format - it will match some weird stuff
+            parsePaste(pasteVal);
     }
 
     async function parsePaste(pasteVal){
