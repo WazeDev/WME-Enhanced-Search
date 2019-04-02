@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.02.01
+// @version          2019.04.02.02
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "A display for how many segments and Places are found with the supplied regex search now displays when searching.  Clicking on either of these will select all of the highlighted segments/Places.";
+    var updateMessage = "Adding support for finding segments in ROW and IL when the segment ID is pasted directly and they are not on screen<br><br><h4>.01</h4>A display for how many segments and Places are found with the supplied regex search now displays when searching.  Clicking on either of these will select all of the highlighted segments/Places.";
 
     var WMEESLayer;
     var style = new OL.Style({
@@ -354,10 +354,12 @@
             else{ //use segmentFinder to find the venue, jump there & select
                 if(W.app.getAppRegionCode() === "usa"){//segment finder currently only works for the NA server
                     try{
+                        debugger;
                         let result = await $.get(`https://w-tools.org/api/SegmentFinder?find=${pasteVal}`);
 
                         jump4326(result.coordinates.longitude, result.coordinates.latitude, 6); //jumping to z6 to try and ensure all places are on screen, without zooming out too far
                         WazeWrap.Model.onModelReady(function(){
+                            $('.search-query')[0].value = '';
                             W.selectionManager.setSelectedModels(W.model.venues.getObjectById(pasteVal));
                         }, true, this);
                     }
@@ -367,7 +369,7 @@
                 }
             }
         }
-        else if(pasteVal.match()){
+        else if(pasteVal.match(regexs.segmentid)){
             let segsArr = pasteVal.split(',');
             let segsObjs = [];
             for(let i=0; i <segsArr.length; i++){
@@ -375,27 +377,29 @@
                 if(seg)
                     segsObjs.push(seg);
             }
-            if(segsObjs.length > 0)
+            if(segsObjs.length > 0){
                 W.selectionManager.setSelectedModels(segsObjs);
+                processed = true;
+            }
             else{
                 //Couldn't find segment(s) - try to locate the first one and then select them all
-                if(W.app.getAppRegionCode() === "usa"){//segment finder currently only works for the NA server
-                    try{
-                        let result = await $.get(`https://w-tools.org/api/SegmentFinder?find=${segsArr[0]}`);
-
-                        jump4326(result.coordinates.longitude, result.coordinates.latitude, 6); //jumping to z6 to try and ensure all segments are on screen, without zooming out too far
-                        WazeWrap.Model.onModelReady(function(){
+                try{
+                    let result = await WazeWrap.Util.findSegment(W.app.getAppRegionCode(), segsArr[0]); //await $.get(`https://w-tools.org/api/SegmentFinder?find=${segsArr[0]}`);
+                    if(result){
+                        jump4326(result.x, result.y, 6); //jumping to z6 to try and ensure all segments are on screen, without zooming out too far
+                        WazeWrap.Model.onModelReady(() =>{
                             for(let i=0; i <segsArr.length; i++){
                                 let seg = W.model.segments.getObjectById(segsArr[i])
                                 if(seg)
                                     segsObjs.push(seg);
                             }
+                            $('.search-query')[0].value = '';
                             W.selectionManager.setSelectedModels(segsObjs);
                         }, true, this);
                     }
-                    catch(err){
-                        console.log(err);
-                    }
+                }
+                catch(err){
+                    console.log(err);
                 }
             }
         }
@@ -416,4 +420,5 @@
         if(zoom)
             W.map.zoomTo(zoom);
     }
+
 })();
