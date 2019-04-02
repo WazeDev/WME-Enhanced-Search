@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.01.02
+// @version          2019.04.02.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Regular expression (regex) highlighting is now possible!  With regex highlighting your searches must start and end with '/'.  Example: /McDonald's/  <br><br>If you want your search to be case insensitive you can append the 'i' flag to the end:  /mcdonald's/i  <br><br>  This will search all segments and Places checking both the primary and alternate names.";
+    var updateMessage = "A display for how many segments and Places are found with the supplied regex search now displays when searching.  Clicking on either of these will select all of the highlighted segments/Places.";
 
     var WMEESLayer;
     var style = new OL.Style({
@@ -98,6 +98,7 @@
         return(false);
     }
 
+    var placesHighlighted = [], segmentsHighlighted = [];
     function regexHighlight(){
         let query = $('.search-query')[0].value;
         if(query.match(regexs.regexHighlight)){
@@ -109,7 +110,7 @@
                 query=query.slice(0, -1);
             }
             query = query.substring(1, query.length-1);
-            
+
             if(query.length < 2)
                 return;
             WazeWrap.Events.unregister('moveend', window, regexHighlight);
@@ -117,12 +118,17 @@
             WazeWrap.Events.unregister('zoomend', window, regexHighlight);
             WazeWrap.Events.register('zoomend', window, regexHighlight);
 
+            placesHighlighted = [];
+            segmentsHighlighted = [];
+
             let onscreenSegments = WazeWrap.Model.getOnscreenSegments();
             for(let i = 0; i < onscreenSegments.length; i++){
                 if(onscreenSegments[i].attributes.primaryStreetID){
                     let st = W.model.streets.getObjectById(onscreenSegments[i].attributes.primaryStreetID);
-                    if(st.name && st.name.match(new RegExp(query, regexFlag)))
+                    if(st.name && st.name.match(new RegExp(query, regexFlag))){
                         highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                        segmentsHighlighted.push(onscreenSegments[i]);
+                    }
                     else{
                         if(onscreenSegments[i].attributes.streetIDs){
                             let alts = onscreenSegments[i].attributes.streetIDs;
@@ -130,6 +136,7 @@
                                 let altSt = W.model.streets.getObjectById(alts[j]);
                                 if(altSt.name.match(new RegExp(query, regexFlag))){
                                     highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                                    segmentsHighlighted.push(onscreenSegments[i]);
                                     break;
                                 }
                             }
@@ -144,17 +151,38 @@
             });
 
             for(let i = 0; i < onscreenVenues.length; i++){
-                if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag)))
+                if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag))){
                     highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                    placesHighlighted.push(onscreenVenues[i]);
+                }
                 else if(onscreenVenues[i].attributes.aliases){
                     let aliases = onscreenVenues[i].attributes.aliases;
                     for(let j=0; j< aliases.length; j++){
-                        if(aliases[j].match(new RegExp(query, regexFlag)))
+                        if(aliases[j].match(new RegExp(query, regexFlag))){
                             highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
-                        break;
+                            placesHighlighted.push(onscreenVenues[i]);
+                            break;
+                        }
                     }
                 }
             }
+
+            if($('#WMEES_regexCounts').length === 0){
+                $('.input-wrapper').append(`<div id="WMEES_regexCounts" class="fa" style="background-color:white; width:100%; top:${$('.input-wrapper').height()}; font-size:14px;"><span id="WMEES_roadcount" style="cursor:pointer;" class="fa-road">0</span><span id="WMEES_placecount" style="margin-left:8px; cursor:pointer;" class="fa-map-marker">0</span></div>`);
+                $('#WMEES_placecount').click(function(){
+                    if(placesHighlighted.length > 0)
+                       W.selectionManager.setSelectedModels(placesHighlighted);
+                });
+
+                $('#WMEES_roadcount').click(function(){
+                    if(segmentsHighlighted.length > 0)
+                        W.selectionManager.setSelectedModels(segmentsHighlighted);
+                });
+            }
+
+            $('#WMEES_placecount').html(placesHighlighted.length);
+            $('#WMEES_roadcount').html(segmentsHighlighted.length);
+
             if(highlights.length > 0){
                 if(!WMEESLayer)
                     WMEESLayer = new OL.Layer.Vector("WME_Enhanced_Search",{displayInLayerSwitcher: false, uniqueName: "__WME_Enhanced_Search", styleMap: new OL.StyleMap(style)});
@@ -163,12 +191,13 @@
                 WMEESLayer.addFeatures(highlights);
                 if(W.map.getLayersByName(["WME_Enhanced_Search"]).length === 0)
                     W.map.addLayer(WMEESLayer);
-            }
+                }
             else
                 if(WMEESLayer && WMEESLayer.features.length>0){
                     WMEESLayer.removeAllFeatures();
                     WazeWrap.Events.unregister('moveend', window, regexHighlight);
                     WazeWrap.Events.unregister('zoomend', window, regexHighlight);
+                    //$('#WMEES_regexCounts').remove();
                 }
         }
         else{
@@ -178,6 +207,7 @@
                 WMEESLayer.removeAllFeatures();
                 W.map.removeLayer(WMEESLayer);
             }
+            $('#WMEES_regexCounts').remove();
         }
     }
 
