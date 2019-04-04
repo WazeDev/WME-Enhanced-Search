@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.02.02
+// @version          2019.04.04.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -218,7 +218,7 @@
     }
 
     async function readPaste(){
-        let pasteVal = await navigator.clipboard.readText();
+        let pasteVal = e.clipboardData.getData('text'); //await navigator.clipboard.readText();
         if(!pasteVal.match(regexs.regexHighlight)) //don't try and parse if it matches the regex highlight format - it will match some weird stuff
             parsePaste(pasteVal);
     }
