@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.04.01
+// @version          2019.04.05.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Adding support for finding segments in ROW and IL when the segment ID is pasted directly and they are not on screen<br><br><h4>.01</h4>A display for how many segments and Places are found with the supplied regex search now displays when searching.  Clicking on either of these will select all of the highlighted segments/Places.";
+    var updateMessage = "Changed how reading the clipboard worked since the clipboard API was not available in Firefox for scripts.";
 
     var WMEESLayer;
     var style = new OL.Style({
@@ -217,7 +217,7 @@
         parsePaste(data);
     }
 
-    async function readPaste(){
+    async function readPaste(e){
         let pasteVal = e.clipboardData.getData('text'); //await navigator.clipboard.readText();
         if(!pasteVal.match(regexs.regexHighlight)) //don't try and parse if it matches the regex highlight format - it will match some weird stuff
             parsePaste(pasteVal);
@@ -270,9 +270,8 @@
 
                 if(selectObjs.length > 0)
                     W.selectionManager.setSelectedModels(selectObjs);
-                processed = true;
-                if(processed)
-                    $('.search-query')[0].value = '';
+
+                $('.search-query')[0].value = '';
             }, true, this);
         }
         else if(pasteVal.match(regexs.gmapurl)){
