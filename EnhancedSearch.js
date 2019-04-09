@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.05.01
+// @version          2019.04.08.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -351,20 +351,18 @@
                 processed = true;
             }
             else{ //use segmentFinder to find the venue, jump there & select
-                if(W.app.getAppRegionCode() === "usa"){//segment finder currently only works for the NA server
-                    try{
-                        debugger;
-                        let result = await $.get(`https://w-tools.org/api/SegmentFinder?find=${pasteVal}`);
-
-                        jump4326(result.coordinates.longitude, result.coordinates.latitude, 6); //jumping to z6 to try and ensure all places are on screen, without zooming out too far
+                try{
+                    let result = await WazeWrap.Util.findVenue(W.app.getAppRegionCode(), pasteVal);
+                    if(result){
+                        jump4326(result.x, result.y, 6); //jumping to z6 to try and ensure all places are on screen, without zooming out too far
                         WazeWrap.Model.onModelReady(function(){
                             $('.search-query')[0].value = '';
                             W.selectionManager.setSelectedModels(W.model.venues.getObjectById(pasteVal));
                         }, true, this);
                     }
-                    catch(err){
-                        console.log(err);
-                    }
+                }
+                catch(err){
+                    console.log(err);
                 }
             }
         }
