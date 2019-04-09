@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.08.01
+// @version          2019.04.08.02
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Changed how reading the clipboard worked since the clipboard API was not available in Firefox for scripts.";
+    var updateMessage = "Venue search by ID (when off screen) now works for ROW and IL.";
 
     var WMEESLayer;
     var style = new OL.Style({
