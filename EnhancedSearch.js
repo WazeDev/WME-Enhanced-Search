@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.08.02
+// @version          2019.04.22.02
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -71,7 +71,8 @@
         'mandrillappurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.)?mandrillapp\.com\/(?:.*?\/)?www\.waze\.com[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*_(.*)', "ig"),
         'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
         'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
-        'regexHighlight': new RegExp('^(\\/.*?\\/i?)')
+        'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
+        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
     };
 
     function enhanceSearch(){
@@ -274,6 +275,11 @@
                 $('.search-query')[0].value = '';
             }, true, this);
         }
+        else if(pasteVal.match(regexs.livemapshareurl)){
+            let params = pasteVal.match(regexs.livemapshareurl);
+            jump4326(params[2], params[1], 6);
+            processed = true;
+        }
         else if(pasteVal.match(regexs.gmapurl)){
             let zoom;
             let params = pasteVal.split('@').pop().split(',');
@@ -402,7 +408,7 @@
         }
 
         if(processed)
-            $('.search-query')[0].value = '';
+            setTimeout(function(){$('.search-query')[0].value = '';}, 50);
     }
 
     function jump900913(lon, lat, zoom){
