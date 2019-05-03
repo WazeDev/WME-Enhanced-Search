@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.04.22.03
+// @version          2019.05.03.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -27,7 +27,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Adding support for app share URL and fixing the clearing of the search box when a paste has been processed";
+    var updateMessage = "";
 
     var WMEESLayer;
     var style = new OL.Style({
