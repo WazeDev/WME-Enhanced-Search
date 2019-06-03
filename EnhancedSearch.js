@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.05.03.01
+// @version          2019.06.03.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -235,6 +235,44 @@
                 zoom -= 12;
             zoom = (Math.max(0,Math.min(10,zoom)));
             jump4326(lon, lat, zoom);
+            if(pasteVal.match(/&segments=(.*)(?:&|$)/)){
+                if(!$('#layer-switcher-group_road').is(':checked'))
+                    $('#layer-switcher-group_road').click();
+                if(!$('#layer-switcher-item_road').is(':checked'))
+                    $('#layer-switcher-item_road').click();
+            }
+            if(pasteVal.match(/&venues=(.*)(?:&|$)/)){
+                if(!$('#layer-switcher-group_places').is(':checked'))
+                    $('#layer-switcher-group_places').click();
+                if(!$('#layer-switcher-item_venues').is(':checked'))
+                    $('#layer-switcher-item_venues').click();
+                if(!$('#layer-switcher-item_residential_places').is(':checked'))
+                    $('#layer-switcher-item_residential_places').click();
+                if(!$('#layer-switcher-item_parking_places').is(':checked'))
+                    $('#layer-switcher-item_parking_places').click();
+            }
+            if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
+                if(!$('#layer-switcher-group_issues').is(':checked'))
+                    $('#layer-switcher-group_issues').click();
+                if(!$('#layer-switcher-group_map_issues').is(':checked'))
+                    $('#layer-switcher-group_map_issues').click();
+                if(!$('#layer-switcher-item_update_requests').is(':checked'))
+                    $('#layer-switcher-item_update_requests').click();
+            }
+            if(pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)){
+                if(!$('#layer-switcher-group_issues').is(':checked'))
+                    $('#layer-switcher-group_issues').click();
+                if(!$('#layer-switcher-group_map_issues').is(':checked'))
+                    $('#layer-switcher-group_map_issues').click();
+                if(!$('#layer-switcher-item_map_problems').is(':checked'))
+                    $('#layer-switcher-item_map_problems').click();
+            }
+            if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
+                if(!$('#layer-switcher-group_display').is(':checked'))
+                    $('#layer-switcher-group_display').click();
+                if(!$('#layer-switcher-item_map_comments').is(':checked'))
+                    $('#layer-switcher-item_map_comments').click();
+            }
 
             WazeWrap.Model.onModelReady(function(){
                 //Check for selected objects
