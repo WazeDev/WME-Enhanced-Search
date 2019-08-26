@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.07.24.01
+// @version          2019.08.26.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -66,7 +66,7 @@
         'openstreetmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?openstreetmap\.org\/(?:.*?\/)?#map[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'pluscodeurl': new RegExp('(?:http(?:s):\\/\\/)?plus\\.codes\\/([a-zA-Z0-9+]*)'),
         'what3wordsurl': new RegExp('(?:http(?:s):\\/\\/)?(?:w3w\\.co|map\\.what3words\\.com)\\/(.*\\..*\\..*)', "ig"),
-        'place_mc_id': new RegExp('\d*\.\d*.\d*', "ig"),
+        'place_mc_id': new RegExp('\d*\.\d*\.\d*', "ig"),
         'segmentid': new RegExp('\d*'),
         'mandrillappurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.)?mandrillapp\.com\/(?:.*?\/)?www\.waze\.com[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*_(.*)', "ig"),
         'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
@@ -383,7 +383,7 @@
                 alert("The three word address provided is not valid");
             }
         }
-        else if(pasteVal.match(/\d*\.\d*.\d*/)){ //Waze Place/mapComment id pasted directly
+        else if(pasteVal.match(/\d*\.\d*\.\d*/)){ //Waze Place/mapComment id pasted directly
             let landmark = W.model.venues.getObjectById(pasteVal);
             let mapcomment = W.model.mapComments.getObjectById(pasteVal);
             if(landmark){
