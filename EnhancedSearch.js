@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.08.26.01
+// @version          2019.08.26.02
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -310,7 +310,7 @@
                 if(selectObjs.length > 0)
                     W.selectionManager.setSelectedModels(selectObjs);
 
-                $('.search-query')[0].value = '';
+                setTimeout(() => {$('.search-query')[0].value = '';}, 100);
             }, true, this);
         }
         else if(pasteVal.match(regexs.livemapshareurl)){
