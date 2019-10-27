@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.08.26.02
+// @version          2019.10.27.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -277,8 +277,8 @@
             WazeWrap.Model.onModelReady(function(){
                 //Check for selected objects
                 let selectObjs = [];
-                if(pasteVal.match(/&segments=(.*)(?:&|$)/)){
-                    let segs = pasteVal.match(/&segments=(.*)(?:&|$)/)[1];
+                if(pasteVal.match(/&segments=(.*)&|$/)){
+                    let segs = pasteVal.match(/&segments=(.*)&|$/)[1];
                     segs = segs.split(',');
                     for(let i=0; i <segs.length; i++)
                         selectObjs.push(W.model.segments.getObjectById(segs[i]));
@@ -293,13 +293,16 @@
 
                 if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
                     let ur = pasteVal.match(/&mapUpdateRequest=(\d*)/)[1];
-                    W.map.updateRequestLayer.featureMarkers[ur].marker.icon.$div[0].click()
+                    debugger;
+                    if(W.map.updateRequestLayer.featureMarkers[ur])
+                        W.map.updateRequestLayer.featureMarkers[ur].marker.icon.$div[0].click()
                 }
 
                 if(pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)){
                     let mp = pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)[1];
                     mp = decodeURIComponent(mp);
-                    W.map.problemLayer.markers[mp].icon.$div[0].click();
+                    if(W.map.problemLayer.markers[mp])
+                        W.map.problemLayer.markers[mp].icon.$div[0].click();
                 }
 
                 if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
