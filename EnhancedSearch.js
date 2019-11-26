@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.10.27.01
+// @version          2019.11.26.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -455,7 +455,7 @@
     function jump900913(lon, lat, zoom){
         W.map.setCenter(new OL.Geometry.Point(lon, lat));
         if(zoom)
-            W.map.zoomTo(zoom);
+            W.map.olMap.zoomTo(zoom);
     }
 
     function jump4326(lon, lat, zoom){
