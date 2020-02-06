@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2019.12.09.01
+// @version          2020.02.06.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -277,15 +277,15 @@
             WazeWrap.Model.onModelReady(function(){
                 //Check for selected objects
                 let selectObjs = [];
-                if(pasteVal.match(/&segments=(.*)&|$/)){
-                    let segs = pasteVal.match(/&segments=(.*)&|$/)[1];
+                if(pasteVal.match(/&segments=(.*?)(?:$|&)/)){
+                    let segs = pasteVal.match(/&segments=(.*?)(?:$|&)/)[1];
                     segs = segs.split(',');
                     for(let i=0; i <segs.length; i++)
                         selectObjs.push(W.model.segments.getObjectById(segs[i]));
                 }
 
-                if(pasteVal.match(/&venues=(.*)(?:&|$)/)){
-                    let venues = pasteVal.match(/&venues=(.*)(?:&|$)/)[1];
+                if(pasteVal.match(/&venues=(.*?)(?:&|$)/)){
+                    let venues = pasteVal.match(/&venues=(.*?)(?:&|$)/)[1];
                     venues = venues.split(',');
                     for(let i=0; i <venues.length; i++)
                         selectObjs.push(W.model.venues.getObjectById(venues[i]));
