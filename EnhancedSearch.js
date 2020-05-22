@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2020.03.27.01
+// @version          2020.05.22.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -15,7 +15,7 @@
 // ==/UserScript==
 
 /* global W */
-/* global OL */
+/* global OpenLayers */
 /* ecmaVersion 2017 */
 /* global $ */
 /* global I18n */
@@ -30,7 +30,7 @@
     var updateMessage = "";
 
     var WMEESLayer;
-    var style = new OL.Style({
+    var style = new OpenLayers.Style({
         strokeColor: "#ee9900",
         strokeDashstyle: "none",
         strokeLinecap: "round",
@@ -47,7 +47,7 @@
            $('.search-query').length > 0)
             init();
         else if (tries < 1000)
-            setTimeout(function () {bootstrap(tries++);}, 200);
+            setTimeout(function () {bootstrap(++tries);}, 200);
     }
 
     bootstrap();
@@ -127,7 +127,7 @@
                 if(onscreenSegments[i].attributes.primaryStreetID){
                     let st = W.model.streets.getObjectById(onscreenSegments[i].attributes.primaryStreetID);
                     if(st.name && st.name.match(new RegExp(query, regexFlag))){
-                        highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                        highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
                         segmentsHighlighted.push(onscreenSegments[i]);
                     }
                     else{
@@ -136,7 +136,7 @@
                             for(let j=0; j < alts.length; j++){
                                 let altSt = W.model.streets.getObjectById(alts[j]);
                                 if(altSt.name.match(new RegExp(query, regexFlag))){
-                                    highlights.push(new OL.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                                    highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
                                     segmentsHighlighted.push(onscreenSegments[i]);
                                     break;
                                 }
@@ -153,14 +153,14 @@
 
             for(let i = 0; i < onscreenVenues.length; i++){
                 if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag))){
-                    highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                    highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
                     placesHighlighted.push(onscreenVenues[i]);
                 }
                 else if(onscreenVenues[i].attributes.aliases){
                     let aliases = onscreenVenues[i].attributes.aliases;
                     for(let j=0; j< aliases.length; j++){
                         if(aliases[j].match(new RegExp(query, regexFlag))){
-                            highlights.push(new OL.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                            highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
                             placesHighlighted.push(onscreenVenues[i]);
                             break;
                         }
@@ -186,7 +186,7 @@
 
             if(highlights.length > 0){
                 if(!WMEESLayer)
-                    WMEESLayer = new OL.Layer.Vector("WME_Enhanced_Search",{displayInLayerSwitcher: false, uniqueName: "__WME_Enhanced_Search", styleMap: new OL.StyleMap(style)});
+                    WMEESLayer = new OpenLayers.Layer.Vector("WME_Enhanced_Search",{displayInLayerSwitcher: false, uniqueName: "__WME_Enhanced_Search", styleMap: new OpenLayers.StyleMap(style)});
 
                 WMEESLayer.removeAllFeatures();
                 WMEESLayer.addFeatures(highlights);
@@ -453,7 +453,7 @@
     }
 
     function jump900913(lon, lat, zoom){
-        W.map.setCenter(new OL.Geometry.Point(lon, lat));
+        W.map.setCenter(new OpenLayers.Geometry.Point(lon, lat));
         if(zoom)
             W.map.getOLMap().zoomTo(zoom);
     }
