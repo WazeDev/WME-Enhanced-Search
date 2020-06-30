@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2020.05.22.01
+// @version          2020.06.30.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -64,6 +64,7 @@
         'gmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?google\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*', "ig"),
         'bingurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?bing\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'openstreetmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?openstreetmap\.org\/(?:.*?\/)?#map[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
+        'openstreetmapurlold': new RegExp('(?:http(?:s):\\/\\/)?(?:www)?openstreetmap\\.org\\/index\\.html\\?mlat=(-?\\d*.\\d*)&mlon=(-?\\d*.\\d*)&zoom=(\\d+)'),
         'pluscodeurl': new RegExp('(?:http(?:s):\\/\\/)?plus\\.codes\\/([a-zA-Z0-9+]*)'),
         'what3wordsurl': new RegExp('(?:http(?:s):\\/\\/)?(?:w3w\\.co|map\\.what3words\\.com)\\/(.*\\..*\\..*)', "ig"),
         'place_mc_id': new RegExp('\d*\.\d*\.\d*', "ig"),
@@ -338,6 +339,11 @@
             let params = pasteVal.match(/#map=(\d+)\/(-?\d*.\d*)\/(-?\d*.\d*)/);
             let zoom = (Math.max(0,Math.min(10,(parseInt(params[1]) - 12))));
             jump4326(params[3], params[2], zoom);
+            processed = true;
+        }
+        else if(pasteVal.match(regexs.openstreetmapurlold)){
+            let params = pasteVal.match(/mlat=(-?\d*.\d*)&mlon=(-?\d*.\d*)&zoom=(\d+)/);
+            jump4326(params[2], params[1], (Math.max(0,Math.min(10,(parseInt(params[3]) - 12)))));
             processed = true;
         }
         else if(pasteVal.match(regexs.what3wordsurl)){
