@@ -325,11 +325,11 @@
             processed = true;
         }
         else if(pasteVal.match(regexs.gmapurl)){
-            let zoom;
+            let zoom = 17;
             let params = pasteVal.split('@').pop().split(',');
             let zoomarg = params[2].match(/(\d+)([zm]?)/);
             if (zoomarg[2] == 'z'){
-            zoom = (Math.max(12,Math.min(22,(parseInt(zoomarg[1])))));
+                zoom = (Math.max(12,Math.min(22,(parseInt(zoomarg[1])))));
             }
             else if (zoomarg[2] == 'm'){
                 let m = zoomarg[1];
