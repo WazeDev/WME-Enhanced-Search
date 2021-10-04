@@ -231,7 +231,7 @@
             let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom[Levl]*=(\d+)/);
             let lon = pasteVal.match(/lon=(-?\d*.\d*)/)[1];
             let lat = pasteVal.match(/lat=(-?\d*.\d*)/)[1];
-            let zoom = parseInt(pasteVal.match(/zoom[Levl]*=(\d+)/)[1]);
+            let zoom = parseInt(pasteVal.match(/zoom[Level]*=(\d+)/)[1]);
             //if(pasteVal.match(/livemap/))
             //    zoom -= 12;
             if(pasteVal.match(/zoom=/))
