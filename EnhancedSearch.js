@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2021.09.01.01
+// @version          2021.10.16.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @include          https://www.waze.com/editor*
@@ -73,7 +73,7 @@
         'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
         'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
         'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
-        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
+        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?(?:www|ul).waze\\.com\/.*(?:ul|live-map).*(?:latlng=|to=ll.|ll=)(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
     };
 
     function enhanceSearch(){
@@ -228,13 +228,11 @@
     async function parsePaste(pasteVal){
         let processed = false;
         if(pasteVal.match(regexs.wazeurl)){
-            let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom[Levl]*=(\d+)/);
+            let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom[Level]*=(\d+)/);
             let lon = pasteVal.match(/lon=(-?\d*.\d*)/)[1];
             let lat = pasteVal.match(/lat=(-?\d*.\d*)/)[1];
             let zoom = parseInt(pasteVal.match(/zoom[Level]*=(\d+)/)[1]);
-            //if(pasteVal.match(/livemap/))
-            //    zoom -= 12;
-            if(pasteVal.match(/zoom=/))
+            if(zoom <= 10)
                 zoom += 12;
             zoom = (Math.max(12,Math.min(22,zoom)));
             jump4326(lon, lat, zoom);
