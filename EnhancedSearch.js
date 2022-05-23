@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2020.06.30.01
+// @version          2022.05.23.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
-// @include          https://www.waze.com/editor*
-// @include          https://www.waze.com/*/editor*
-// @include          https://beta.waze.com/editor*
-// @include          https://beta.waze.com/*/editor*
+// @match            https://www.waze.com/editor*
+// @match            https://www.waze.com/*/editor*
+// @match            https://beta.waze.com/editor*
+// @match            https://beta.waze.com/*/editor*
 // @exclude          https://www.waze.com/*user/editor*
 // @grant            none
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
@@ -62,6 +62,7 @@
     var regexs = {
         'wazeurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.|beta\.)?waze\.com\/(?:.*?\/)?(editor|livemap)[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*', "ig"),
         'gmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?google\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*', "ig"),
+        'gmapurlold': new RegExp('(?:http(?:s):\\/\\/)?maps.google\\.com\\/(?:.*?\\/)?maps\\?ll=(-?\\d*.\\d*),(-?\\d*.\\d*)'),
         'bingurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?bing\.com\/(?:.*?\/)?maps[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'openstreetmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?openstreetmap\.org\/(?:.*?\/)?#map[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'openstreetmapurlold': new RegExp('(?:http(?:s):\\/\\/)?(?:www)?openstreetmap\\.org\\/index\\.html\\?mlat=(-?\\d*.\\d*)&mlon=(-?\\d*.\\d*)&zoom=(\\d+)'),
@@ -73,7 +74,8 @@
         'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
         'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
         'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
-        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
+        'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
+        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
     };
 
     function enhanceSearch(){
@@ -228,13 +230,13 @@
     async function parsePaste(pasteVal){
         let processed = false;
         if(pasteVal.match(regexs.wazeurl)){
-            let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom=(\d+)/);
+            let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom(?:Level)?=(\d+)/);
             let lon = pasteVal.match(/lon=(-?\d*.\d*)/)[1];
             let lat = pasteVal.match(/lat=(-?\d*.\d*)/)[1];
-            let zoom = parseInt(pasteVal.match(/zoom=(\d+)/)[1]);
-            if(pasteVal.match(/livemap/))
-                zoom -= 12;
-            zoom = (Math.max(0,Math.min(10,zoom)));
+            let zoom = parseInt(pasteVal.match(/zoom(?:Level)?=(\d+)/)[1]);
+            if(pasteVal.match(/zoom=/))
+                zoom += 12;
+            zoom = (Math.max(12,Math.min(22,zoom)));
             jump4326(lon, lat, zoom);
             if(pasteVal.match(/&segments=(.*)(?:&|$)/)){
                 if(!$('#layer-switcher-group_road').prop('checked'))
@@ -317,33 +319,43 @@
                 setTimeout(() => {$('.search-query')[0].value = '';}, 100);
             }, true, this);
         }
+        else if(pasteVal.match(regexs.livemapshareurlold)){
+            let params = pasteVal.match(regexs.livemapshareurlold);
+            jump4326(params[2], params[1], 6);
+            processed = true;
+        }
         else if(pasteVal.match(regexs.livemapshareurl)){
             let params = pasteVal.match(regexs.livemapshareurl);
+            jump4326(params[2], params[1], 18);
+            processed = true;
+        }
+        else if(pasteVal.match(regexs.gmapurlold)){
+            let params = pasteVal.match(/maps\?ll=(-?\d*.\d*),(-?\d*.\d*)/);
             jump4326(params[2], params[1], 6);
             processed = true;
         }
         else if(pasteVal.match(regexs.gmapurl)){
             let zoom;
             let params = pasteVal.split('@').pop().split(',');
-            zoom = (Math.max(0,Math.min(10,(parseInt(params[2]) - 12))));
+            zoom = (Math.max(12,Math.min(22,(parseInt(params[2])))));
             jump4326(params[1], params[0], zoom);
             processed = true;
         }
         else if(pasteVal.match(regexs.bingurl)){
             let params = pasteVal.match(/&cp=(-?\d*.\d*)~(-?\d*.\d*)&lvl=(\d+)/);
-            let zoom = (Math.max(0,Math.min(10,(parseInt(params[3]) - 12))));
+            let zoom = (Math.max(12,Math.min(22,(parseInt(params[3])))));
             jump4326(params[2], params[1], zoom);
             processed = true;
         }
         else if(pasteVal.match(regexs.openstreetmapurl)){
             let params = pasteVal.match(/#map=(\d+)\/(-?\d*.\d*)\/(-?\d*.\d*)/);
-            let zoom = (Math.max(0,Math.min(10,(parseInt(params[1]) - 12))));
+            let zoom = (Math.max(12,Math.min(22,(parseInt(params[1])))));
             jump4326(params[3], params[2], zoom);
             processed = true;
         }
         else if(pasteVal.match(regexs.openstreetmapurlold)){
             let params = pasteVal.match(/mlat=(-?\d*.\d*)&mlon=(-?\d*.\d*)&zoom=(\d+)/);
-            jump4326(params[2], params[1], (Math.max(0,Math.min(10,(parseInt(params[3]) - 12)))));
+            jump4326(params[2], params[1], (Math.max(12,Math.min(22,(parseInt(params[3]))))));
             processed = true;
         }
         else if(pasteVal.match(regexs.what3wordsurl)){
@@ -407,7 +419,7 @@
                 try{
                     let result = await WazeWrap.Util.findVenue(W.app.getAppRegionCode(), pasteVal);
                     if(result){
-                        jump4326(result.x, result.y, 6); //jumping to z6 to try and ensure all places are on screen, without zooming out too far
+                        jump4326(result.x, result.y, 18); //jumping to z18 to try and ensure all places are on screen, without zooming out too far
                         WazeWrap.Model.onModelReady(function(){
                             $('.search-query')[0].value = '';
                             W.selectionManager.setSelectedModels(W.model.venues.getObjectById(pasteVal));
@@ -420,6 +432,7 @@
             }
         }
         else if(pasteVal.match(regexs.segmentid)){
+            debugger;
             let segsArr = pasteVal.split(',');
             let segsObjs = [];
             for(let i=0; i <segsArr.length; i++){
@@ -436,7 +449,7 @@
                 try{
                     let result = await WazeWrap.Util.findSegment(W.app.getAppRegionCode(), segsArr[0]); //await $.get(`https://w-tools.org/api/SegmentFinder?find=${segsArr[0]}`);
                     if(result){
-                        jump4326(result.x, result.y, 6); //jumping to z6 to try and ensure all segments are on screen, without zooming out too far
+                        jump4326(result.x, result.y, 18); //jumping to z18 to try and ensure all segments are on screen, without zooming out too far
                         WazeWrap.Model.onModelReady(() =>{
                             for(let i=0; i <segsArr.length; i++){
                                 let seg = W.model.segments.getObjectById(segsArr[i])
