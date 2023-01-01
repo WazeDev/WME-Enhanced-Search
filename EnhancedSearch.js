@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2022.05.23.01
+// @version          2023.01.01.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -244,6 +244,12 @@
                 if(!$('#layer-switcher-item_road').prop('checked'))
                     $('#layer-switcher-item_road').click();
             }
+            if(pasteVal.match(/&segmentSuggestions=(.*)(?:&|$)/)){
+                if(!$('#layer-switcher-group_road').prop('checked'))
+                    $('#layer-switcher-group_road').click();
+                if(!$('#layer-switcher-item_road').prop('checked'))
+                    $('#layer-switcher-item_road').click();
+            }
             if(pasteVal.match(/&venues=(.*)(?:&|$)/)){
                 if(!$('#layer-switcher-group_places').prop('checked'))
                     $('#layer-switcher-group_places').click();
@@ -285,6 +291,12 @@
                     segs = segs.split(',');
                     for(let i=0; i <segs.length; i++)
                         selectObjs.push(W.model.segments.getObjectById(segs[i]));
+                }
+                if(pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)){
+                    let segs = pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)[1];
+                    segs = segs.split(',');
+                    for(let i=0; i <segs.length; i++)
+                        selectObjs.push(W.model.segmentSuggestions.getObjectById(segs[i]));
                 }
 
                 if(pasteVal.match(/&venues=(.*?)(?:&|$)/)){
