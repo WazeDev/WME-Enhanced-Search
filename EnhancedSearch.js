@@ -30,30 +30,24 @@
     var updateMessage = "";
 
     var WMEESLayer;
-    var style = new OpenLayers.Style({
-        strokeColor: "#ee9900",
-        strokeDashstyle: "none",
-        strokeLinecap: "round",
-        strokeWidth: 18,
-        strokeOpacity: 0.55,
-        fill: false,
-        pointRadius: 6
-    });
+    var style;
 
     function bootstrap(tries = 1) {
-        if (W && W.map &&
-            W.model && W.loginManager.user &&
-            $ && WazeWrap.Ready &&
-           $('.search-query').length > 0)
+        if (W?.userscripts?.state.isReady && $ && WazeWrap.Ready && $('.search-query').length > 0) {
             init();
-        else if (tries < 1000)
-            setTimeout(function () {bootstrap(++tries);}, 200);
+        } else if (tries < 1000) {
+            setTimeout(() => {bootstrap(++tries)}, 250);
+        } else {
+            console.log('WME Enhanced Search - bootstrap failed');
+        }
     }
 
     bootstrap();
 
     function init(){
         //init function in case we need to set up a tab for configuration.  I don't want to do it.  Don't make me.
+        
+        initStyle();
         enhanceSearch();
 
         WazeWrap.Interface.ShowScriptUpdate("WME Enhanced Search", GM_info.script.version, updateMessage, "https://greasyfork.org/en/scripts/381111-wme-enhanced-search", "https://www.waze.com/forum/viewtopic.php?f=819&t=279778");
@@ -77,6 +71,18 @@
         'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
         'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
     };
+
+    function initStyle() {
+        style = new OpenLayers.Style({
+            strokeColor: "#ee9900",
+            strokeDashstyle: "none",
+            strokeLinecap: "round",
+            strokeWidth: 18,
+            strokeOpacity: 0.55,
+            fill: false,
+            pointRadius: 6
+        });
+    }
 
     function enhanceSearch(){
         $('.search-query')[0].removeEventListener('paste', readPaste, false);
