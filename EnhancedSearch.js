@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2023.01.01.01
+// @version          2023.12.09.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -12,6 +12,8 @@
 // @grant            none
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @contributionURL  https://github.com/WazeDev/Thank-The-Authors
+// @downloadURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.user.js
+// @updateURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.meta.js
 // ==/UserScript==
 
 /* global W */
@@ -30,15 +32,7 @@
     var updateMessage = "";
 
     var WMEESLayer;
-    var style = new OpenLayers.Style({
-        strokeColor: "#ee9900",
-        strokeDashstyle: "none",
-        strokeLinecap: "round",
-        strokeWidth: 18,
-        strokeOpacity: 0.55,
-        fill: false,
-        pointRadius: 6
-    });
+    var style;
 
     function bootstrap(tries = 1) {
         if (W && W.map &&
@@ -53,6 +47,16 @@
     bootstrap();
 
     function init(){
+
+        style = new OpenLayers.Style({
+            strokeColor: "#ee9900",
+            strokeDashstyle: "none",
+            strokeLinecap: "round",
+            strokeWidth: 18,
+            strokeOpacity: 0.55,
+            fill: false,
+            pointRadius: 6
+        });
         //init function in case we need to set up a tab for configuration.  I don't want to do it.  Don't make me.
         enhanceSearch();
 
@@ -308,7 +312,7 @@
 
                 if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
                     let ur = pasteVal.match(/&mapUpdateRequest=(\d*)/)[1];
-                    debugger;
+
                     if(W.map.updateRequestLayer.featureMarkers[ur])
                         W.map.updateRequestLayer.featureMarkers[ur].marker.icon.$div[0].click()
                 }
@@ -444,7 +448,6 @@
             }
         }
         else if(pasteVal.match(regexs.segmentid)){
-            debugger;
             let segsArr = pasteVal.split(',');
             let segsObjs = [];
             for(let i=0; i <segsArr.length; i++){
