@@ -79,8 +79,9 @@
         'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
         'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
         'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
-        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*')
-    };
+        'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
+         'ohgo': new RegExp('(?:http(?:s):\\/\\/)?(?:www\\.)?ohgo\\.com\\/.*\\?lt=(-?\\d*.\\d*)&ln=(-?\\d*.\\d*)&z=(\\d+)'),
+   };
 
     function enhanceSearch(){
         $('.search-query')[0].removeEventListener('paste', readPaste, false);
@@ -372,6 +373,11 @@
         else if(pasteVal.match(regexs.openstreetmapurlold)){
             let params = pasteVal.match(/mlat=(-?\d*.\d*)&mlon=(-?\d*.\d*)&zoom=(\d+)/);
             jump4326(params[2], params[1], (Math.max(12,Math.min(22,(parseInt(params[3]))))));
+            processed = true;
+        }
+        else if(pasteVal.match(regexs.ohgo)){
+            let params = pasteVal.match(regexs.ohgo);
+            jump4326(params[2], params[1], params[3]);
             processed = true;
         }
         else if(pasteVal.match(regexs.what3wordsurl)){
