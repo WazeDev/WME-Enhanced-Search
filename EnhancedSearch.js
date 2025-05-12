@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2023.12.09.01
+// @version          2025.01.07.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -29,16 +29,17 @@
 (function() {
     'use strict';
 
-    var updateMessage = "";
+    var updateMessage = "Search box naming changed - updated to new target.";
 
     var WMEESLayer;
     var style;
+    var searchBoxTarget = "#search-autocomplete";
 
     function bootstrap(tries = 1) {
         if (W && W.map &&
             W.model && W.loginManager.user &&
             $ && WazeWrap.Ready &&
-           $('.search-query').length > 0)
+           $(`${searchBoxTarget}`).length > 0)
             init();
         else if (tries < 1000)
             setTimeout(function () {bootstrap(++tries);}, 200);
@@ -84,21 +85,21 @@
    };
 
     function enhanceSearch(){
-        $('.search-query')[0].removeEventListener('paste', readPaste, false);
-        $('.search-query')[0].addEventListener('paste', readPaste, false);
-        $('.search-query').css({"border": "#2f799b 2px solid", "margin-right":"2px"});
-        $('.search-query').on("dragover", function(event) {
+        $(`${searchBoxTarget}`)[0].removeEventListener('paste', readPaste, false);
+        $(`${searchBoxTarget}`)[0].addEventListener('paste', readPaste, false);
+        $(`${searchBoxTarget}`).css({"border": "#2f799b 2px solid", "margin-right":"2px"});
+        $(`${searchBoxTarget}`).on("dragover", function(event) {
             event.preventDefault();
             event.stopPropagation();
-            $('.search-query')[0].value="";
+            $(`${searchBoxTarget}`)[0].value="";
         });
-        $('.search-query').on("drop", function(event) {
+        $(`${searchBoxTarget}`).on("drop", function(event) {
             event.preventDefault();
             event.stopPropagation();
             drop(event);
         });
 
-        $('.search-query').keyup(regexHighlight);
+        $(`${searchBoxTarget}`).keyup(regexHighlight);
     }
 
     function onScreen(obj) {
@@ -109,7 +110,7 @@
 
     var placesHighlighted = [], segmentsHighlighted = [];
     function regexHighlight(){
-        let query = $('.search-query')[0].value;
+        let query = $(`${searchBoxTarget}`)[0].value;
         if(query.match(regexs.regexHighlight)){
             let highlights=[];
             let regexFlag = "";
@@ -333,7 +334,7 @@
                 if(selectObjs.length > 0)
                     W.selectionManager.setSelectedModels(selectObjs);
 
-                setTimeout(() => {$('.search-query')[0].value = '';}, 100);
+                setTimeout(() => {$(`${searchBoxTarget}`)[0].value = '';}, 100);
             }, true, this);
         }
         else if(pasteVal.match(regexs.livemapshareurlold)){
@@ -443,7 +444,7 @@
                     if(result){
                         jump4326(result.x, result.y, 18); //jumping to z18 to try and ensure all places are on screen, without zooming out too far
                         WazeWrap.Model.onModelReady(function(){
-                            $('.search-query')[0].value = '';
+                            $(`${searchBoxTarget}`)[0].value = '';
                             W.selectionManager.setSelectedModels(W.model.venues.getObjectById(pasteVal));
                         }, true, this);
                     }
@@ -477,7 +478,7 @@
                                 if(seg)
                                     segsObjs.push(seg);
                             }
-                            $('.search-query')[0].value = '';
+                            $(`${searchBoxTarget}`)[0].value = '';
                             W.selectionManager.setSelectedModels(segsObjs);
                         }, true, this);
                     }
@@ -489,7 +490,7 @@
         }
 
         if(processed)
-            setTimeout(function(){$('.search-query')[0].value = '';}, 50);
+            setTimeout(function(){$(`${searchBoxTarget}`)[0].value = '';}, 50);
     }
 
     function jump900913(lon, lat, zoom){
