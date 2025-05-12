@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2025.01.07.01
+// @version          2025.05.12.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -9,6 +9,7 @@
 // @match            https://beta.waze.com/editor*
 // @match            https://beta.waze.com/*/editor*
 // @exclude          https://www.waze.com/*user/editor*
+// @exclude          https://www.waze.com/discuss/*
 // @grant            none
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @contributionURL  https://github.com/WazeDev/Thank-The-Authors
@@ -20,7 +21,6 @@
 /* global OpenLayers */
 /* ecmaVersion 2017 */
 /* global $ */
-/* global I18n */
 /* global _ */
 /* global WazeWrap */
 /* global require */
@@ -29,7 +29,7 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Search box naming changed - updated to new target.";
+    var updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL.";
 
     var WMEESLayer;
     var style;
@@ -81,7 +81,7 @@
         'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
         'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
         'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
-         'ohgo': new RegExp('(?:http(?:s):\\/\\/)?(?:www\\.)?ohgo\\.com\\/.*\\?lt=(-?\\d*.\\d*)&ln=(-?\\d*.\\d*)&z=(\\d+)'),
+        'ohgo': new RegExp('(?:http(?:s):\\/\\/)?(?:www\\.)?ohgo\\.com\\/.*\\?lt=(-?\\d*.\\d*)&ln=(-?\\d*.\\d*)&z=(\\d+)'),
    };
 
     function enhanceSearch(){
@@ -103,15 +103,15 @@
     }
 
     function onScreen(obj) {
-        if (obj.geometry)
-            return(W.map.getExtent().intersectsBounds(obj.geometry.getBounds()));
+        if (obj.getOLGeometry)
+            return(W.map.getOLExtent().intersectsBounds(obj.getOLGeometry().getBounds()));
         return(false);
     }
 
     var placesHighlighted = [], segmentsHighlighted = [];
     function regexHighlight(){
-        let query = $(`${searchBoxTarget}`)[0].value;
-        if(query.match(regexs.regexHighlight)){
+        let query = $(`${searchBoxTarget}`)[0].shadowRoot.querySelector('#text-input').value;
+        if(query && query.length > 0 && query.match(regexs.regexHighlight)){
             let highlights=[];
             let regexFlag = "";
 
@@ -135,8 +135,8 @@
             for(let i = 0; i < onscreenSegments.length; i++){
                 if(onscreenSegments[i].attributes.primaryStreetID){
                     let st = W.model.streets.getObjectById(onscreenSegments[i].attributes.primaryStreetID);
-                    if(st.name && st.name.match(new RegExp(query, regexFlag))){
-                        highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                    if(st.attributes.name && st.attributes.name.match(new RegExp(query, regexFlag))){
+                        highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].getOLGeometry().clone(), {}));
                         segmentsHighlighted.push(onscreenSegments[i]);
                     }
                     else{
@@ -144,8 +144,8 @@
                             let alts = onscreenSegments[i].attributes.streetIDs;
                             for(let j=0; j < alts.length; j++){
                                 let altSt = W.model.streets.getObjectById(alts[j]);
-                                if(altSt.name.match(new RegExp(query, regexFlag))){
-                                    highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].geometry.clone(), {}));
+                                if(altSt.attributes.name.match(new RegExp(query, regexFlag))){
+                                    highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].getOLGeometry().clone(), {}));
                                     segmentsHighlighted.push(onscreenSegments[i]);
                                     break;
                                 }
@@ -162,14 +162,14 @@
 
             for(let i = 0; i < onscreenVenues.length; i++){
                 if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag))){
-                    highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                    highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].getOLGeometry().clone(), {}));
                     placesHighlighted.push(onscreenVenues[i]);
                 }
                 else if(onscreenVenues[i].attributes.aliases){
                     let aliases = onscreenVenues[i].attributes.aliases;
                     for(let j=0; j< aliases.length; j++){
                         if(aliases[j].match(new RegExp(query, regexFlag))){
-                            highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].geometry.clone(), {}));
+                            highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].getOLGeometry().clone(), {}));
                             placesHighlighted.push(onscreenVenues[i]);
                             break;
                         }
@@ -178,7 +178,11 @@
             }
 
             if($('#WMEES_regexCounts').length === 0){
-                $('.input-wrapper').append(`<div id="WMEES_regexCounts" class="fa" style="background-color:white; width:100%; top:${$('.input-wrapper').height()}; font-size:14px;"><span id="WMEES_roadcount" style="cursor:pointer;" class="fa-road">0</span><span id="WMEES_placecount" style="margin-left:8px; cursor:pointer;" class="fa-map-marker">0</span></div>`);
+                // adding the regexCounts div is not working. not sure where it needs to go and how to attach.
+                // top:${$(`${searchBoxTarget}`).height()};
+                const counts = `<div id="WMEES_regexCounts" class="fa" style="background-color:white; width:100%; font-size:14px;"><span id="WMEES_roadcount" style="cursor:pointer;" class="fa-road">0</span><span id="WMEES_placecount" style="margin-left:8px; cursor:pointer;" class="fa-map-marker">0</span></div>`;
+                const el = $(`${searchBoxTarget}`)[0].shadowRoot.querySelector('#text-input');
+                $(el).append(counts);
                 $('#WMEES_placecount').click(function(){
                     if(placesHighlighted.length > 0)
                        W.selectionManager.setSelectedModels(placesHighlighted);
@@ -267,20 +271,20 @@
                     $('#layer-switcher-item_parking_places').click();
             }
             if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
-                if(!$('#layer-switcher-group_issues').prop('checked'))
-                    $('#layer-switcher-group_issues').click();
-                if(!$('#layer-switcher-group_map_issues').prop('checked'))
-                    $('#layer-switcher-group_map_issues').click();
-                if(!$('#layer-switcher-item_update_requests').prop('checked'))
-                    $('#layer-switcher-item_update_requests').click();
+                if(!$('#layer-switcher-group_issues_tracker').prop('checked'))
+                    $('#layer-switcher-group_issues_tracker').click();
+                //if(!$('#layer-switcher-group_map_issues').prop('checked'))
+                //    $('#layer-switcher-group_map_issues').click();
+                //if(!$('#layer-switcher-item_update_requests').prop('checked'))
+                //    $('#layer-switcher-item_update_requests').click();
             }
             if(pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)){
-                if(!$('#layer-switcher-group_issues').prop('checked'))
-                    $('#layer-switcher-group_issues').click();
-                if(!$('#layer-switcher-group_map_issues').prop('checked'))
-                    $('#layer-switcher-group_map_issues').click();
-                if(!$('#layer-switcher-item_map_problems').prop('checked'))
-                    $('#layer-switcher-item_map_problems').click();
+                if(!$('#layer-switcher-group_issues_tracker').prop('checked'))
+                    $('#layer-switcher-group_issues_tracker').click();
+                //if(!$('#layer-switcher-group_map_issues').prop('checked'))
+                //    $('#layer-switcher-group_map_issues').click();
+                //if(!$('#layer-switcher-item_map_problems').prop('checked'))
+                //    $('#layer-switcher-item_map_problems').click();
             }
             if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
                 if(!$('#layer-switcher-group_display').prop('checked'))
@@ -288,15 +292,27 @@
                 if(!$('#layer-switcher-item_map_comments').prop('checked'))
                     $('#layer-switcher-item_map_comments').click();
             }
+            if(pasteVal.match(/&permanentHazards=(\d*)/)){
+                if(!$('#layer-switcher-group_permanent_hazards').prop('checked'))
+                    $('#layer-switcher-group_permanent_hazards').click();
+            }
 
-            WazeWrap.Model.onModelReady(function(){
+            WazeWrap.Model.onModelReady(async function(){
+                // wait for map features loaded
+                for (let j=0; j<100; j++) {
+                    const ldf = W.app.layout.model.attributes.loadingFeatures;
+                    if (!ldf) break;
+                    await new Promise(r => setTimeout(r,200));
+                }
                 //Check for selected objects
                 let selectObjs = [];
                 if(pasteVal.match(/&segments=(.*?)(?:$|&)/)){
                     let segs = pasteVal.match(/&segments=(.*?)(?:$|&)/)[1];
                     segs = segs.split(',');
-                    for(let i=0; i <segs.length; i++)
-                        selectObjs.push(W.model.segments.getObjectById(segs[i]));
+                    for(let i=0; i <segs.length; i++) {
+                        const s = W.model.segments.getObjectById(segs[i]);
+                        if (s) { selectObjs.push(s); }
+                    }
                 }
                 if(pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)){
                     let segs = pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)[1];
@@ -313,22 +329,33 @@
                 }
 
                 if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
-                    let ur = pasteVal.match(/&mapUpdateRequest=(\d*)/)[1];
-
-                    if(W.map.updateRequestLayer.featureMarkers[ur])
-                        W.map.updateRequestLayer.featureMarkers[ur].marker.icon.$div[0].click()
+                    const urid = pasteVal.match(/&mapUpdateRequest=(\d*)/)[1];
+                    const ur = W.model.mapUpdateRequests.getObjectById(urid)
+                    if (ur != null) {
+                       W.problemsController.showProblem(ur, { showNext: false })
+                    }
                 }
 
                 if(pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)){
-                    let mp = pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)[1];
-                    mp = decodeURIComponent(mp);
-                    if(W.map.problemLayer.markers[mp])
-                        W.map.problemLayer.markers[mp].icon.$div[0].click();
+                    let mpid = pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)[1];
+                    mpid = decodeURIComponent(mpid);
+                    const mp = W.model.mapProblems.getObjectById(mpid)
+                    if (mp != null) {
+                       W.problemsController.showProblem(mp, { showNext: false })
+                    }
                 }
 
                 if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
                     let mc = pasteVal.match(/&mapComments=(.*)(?:&|$)/)[1];
                     selectObjs.push(W.model.mapComments.getObjectById(`${mc}`));
+                }
+
+                if(pasteVal.match(/&permanentHazards=(\d*)/)){
+                    const hzid = pasteVal.match(/&permanentHazards=(\d*)/)[1];
+                    const hzo = W.model.permanentHazards.getObjectById(hzid);
+                    if (hzo != null) {
+                       selectObjs.push(hzo)
+                    }
                 }
 
                 if(selectObjs.length > 0)
@@ -355,7 +382,9 @@
         else if(pasteVal.match(regexs.gmapurl)){
             let zoom;
             let params = pasteVal.split('@').pop().split(',');
-            zoom = (Math.max(12,Math.min(22,(parseInt(params[2])))));
+            zoom = parseInt(params[2]);
+            if (zoom > 50) { zoom = 18; } // if zoom arg is in meters, just use 18
+            zoom = (Math.max(12,Math.min(22,zoom)));
             jump4326(params[1], params[0], zoom);
             processed = true;
         }
