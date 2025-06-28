@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2025.05.12.01
+// @version          2025.06.28.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -18,7 +18,6 @@
 // ==/UserScript==
 
 /* global W */
-/* global OpenLayers */
 /* ecmaVersion 2017 */
 /* global $ */
 /* global _ */
@@ -29,39 +28,48 @@
 (function() {
     'use strict';
 
-    var updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL.";
+    const scriptName = 'Enhanced Search';
+    const scriptId = 'enh-search';
+    const updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL.";
 
-    var WMEESLayer;
-    var style;
     var searchBoxTarget = "#search-autocomplete";
 
-    function bootstrap(tries = 1) {
-        if (W && W.map &&
-            W.model && W.loginManager.user &&
-            $ && WazeWrap.Ready &&
-           $(`${searchBoxTarget}`).length > 0)
-            init();
-        else if (tries < 1000)
-            setTimeout(function () {bootstrap(++tries);}, 200);
-    }
+    let wmeSDK;
+    window.SDK_INITIALIZED.then(() => {
+        wmeSDK = getWmeSdk({ scriptId, scriptName });
+        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(async () => {
+            for (let initCount = 1; initCount <= 100; initCount++) {
+                if (WazeWrap?.Ready && $(`${searchBoxTarget}`).length > 0) return init();
+                else if (initCount === 1) console.log('Enhanced Search: Waiting for WazeWrap...');
 
-    bootstrap();
+                await new Promise(r => setTimeout(r, 200));
+            }
+            console.error('Enhanced Search: WazeWrap loading failed. Giving up.');
+        });
+    });
 
     function init(){
-
-        style = new OpenLayers.Style({
-            strokeColor: "#ee9900",
-            strokeDashstyle: "none",
-            strokeLinecap: "round",
-            strokeWidth: 18,
-            strokeOpacity: 0.55,
-            fill: false,
-            pointRadius: 6
+        wmeSDK.Map.addLayer({
+            layerName: scriptName,
+            styleRules: [
+                {
+                    style: {
+                        strokeColor: "#ee9900",
+                        strokeDashstyle: "none",
+                        strokeLinecap: "round",
+                        strokeWidth: 18,
+                        strokeOpacity: 0.55,
+                        fill: false,
+                        pointRadius: 6
+                    },
+                },
+            ]
         });
+
         //init function in case we need to set up a tab for configuration.  I don't want to do it.  Don't make me.
         enhanceSearch();
 
-        WazeWrap.Interface.ShowScriptUpdate("WME Enhanced Search", GM_info.script.version, updateMessage, "https://greasyfork.org/en/scripts/381111-wme-enhanced-search", "https://www.waze.com/forum/viewtopic.php?f=819&t=279778");
+        WazeWrap.Interface.ShowScriptUpdate("WME Enhanced Search", GM_info.script.version, updateMessage, "https://greasyfork.org/en/scripts/381111-wme-enhanced-search", "https://www.waze.com/discuss/t/script-wme-enhanced-search/208815");
     }
 
     var regexs = {
@@ -102,16 +110,40 @@
         $(`${searchBoxTarget}`).keyup(regexHighlight);
     }
 
+    function ptInRect(x,y,xmin,xmax,ymin,ymax) {
+        return (x>=xmin && x<=xmax && y>=ymin && y<=ymax);
+    }
     function onScreen(obj) {
-        if (obj.getOLGeometry)
+        const bb = wmeSDK.Map.getMapExtent();
+        let xmin,xmax,ymin,ymax;
+        if (bb[0] < bb[2]) { xmin = bb[0]; xmax = bb[2]; }
+        else { xmin = bb[2]; xmax = bb[0]; }
+        if (bb[1] < bb[3]) { ymin = bb[1]; ymax = bb[3]; }
+        else { ymin = bb[3]; ymax = bb[1]; }
+        const g = obj.geometry;
+        if (g?.type == 'Point') {
+            const rc = ptInRect(g.coordinates[0],g.coordinates[1],xmin,xmax,ymin,ymax)
+            return rc;
+        }
+        else if (g?.type == 'Polygon') {
+            const poly = g.coordinates[0];
+            for (let p = 0; p < poly.length; p++) {
+                const rc = ptInRect(poly[p][0],poly[p][1],xmin,xmax,ymin,ymax)
+                if (rc) {
+                    return rc;
+                }
+            }
+        }
+        else if (obj.getOLGeometry)
             return(W.map.getOLExtent().intersectsBounds(obj.getOLGeometry().getBounds()));
         return(false);
     }
 
-    var placesHighlighted = [], segmentsHighlighted = [];
+    let placesHighlighted = { ids: [], objectType: "venue" };
+    let segmentsHighlighted = { ids: [], objectType: "segment" };
     function regexHighlight(){
         let query = $(`${searchBoxTarget}`)[0].shadowRoot.querySelector('#text-input').value;
-        if(query && query.length > 0 && query.match(regexs.regexHighlight)){
+        if(query?.length > 0 && query.match(regexs.regexHighlight)){
             let highlights=[];
             let regexFlag = "";
 
@@ -128,25 +160,26 @@
             WazeWrap.Events.unregister('zoomend', window, regexHighlight);
             WazeWrap.Events.register('zoomend', window, regexHighlight);
 
-            placesHighlighted = [];
-            segmentsHighlighted = [];
+            placesHighlighted.ids = [];
+            segmentsHighlighted.ids = [];
 
             let onscreenSegments = WazeWrap.Model.getOnscreenSegments();
             for(let i = 0; i < onscreenSegments.length; i++){
+                const seg = wmeSDK.DataModel.Segments.getById({ segmentId: onscreenSegments[i].attributes.id });
                 if(onscreenSegments[i].attributes.primaryStreetID){
-                    let st = W.model.streets.getObjectById(onscreenSegments[i].attributes.primaryStreetID);
-                    if(st.attributes.name && st.attributes.name.match(new RegExp(query, regexFlag))){
-                        highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].getOLGeometry().clone(), {}));
-                        segmentsHighlighted.push(onscreenSegments[i]);
+                    const st = wmeSDK.DataModel.Streets.getById( { streetId: onscreenSegments[i].attributes.primaryStreetID } );
+                    if(st?.name?.match(new RegExp(query, regexFlag))){
+                        highlights.push( { type: 'Feature', geometry: seg.geometry, id: onscreenSegments[i].attributes.id });
+                        segmentsHighlighted.ids.push(onscreenSegments[i].attributes.id);
                     }
                     else{
                         if(onscreenSegments[i].attributes.streetIDs){
                             let alts = onscreenSegments[i].attributes.streetIDs;
                             for(let j=0; j < alts.length; j++){
-                                let altSt = W.model.streets.getObjectById(alts[j]);
-                                if(altSt.attributes.name.match(new RegExp(query, regexFlag))){
-                                    highlights.push(new OpenLayers.Feature.Vector(onscreenSegments[i].getOLGeometry().clone(), {}));
-                                    segmentsHighlighted.push(onscreenSegments[i]);
+                                const altSt = wmeSDK.DataModel.Streets.getById( { streetId: alts[j] } );
+                                if(altSt?.name?.match(new RegExp(query, regexFlag))){
+                                    highlights.push( { type: 'Feature', geometry: seg.geometry, id: onscreenSegments[i].attributes.id });
+                                    segmentsHighlighted.ids.push(onscreenSegments[i].attributes.id);
                                     break;
                                 }
                             }
@@ -155,22 +188,22 @@
                 }
             }
             let onscreenVenues = [];
-            $.each(W.model.venues.objects, function(k, v){
+            $.each(wmeSDK.DataModel.Venues.getAll(), function(k, v){
                 if(onScreen(v))
                     onscreenVenues.push(v);
             });
 
             for(let i = 0; i < onscreenVenues.length; i++){
-                if(onscreenVenues[i].attributes.name && onscreenVenues[i].attributes.name.match(new RegExp(query, regexFlag))){
-                    highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].getOLGeometry().clone(), {}));
-                    placesHighlighted.push(onscreenVenues[i]);
+                if(onscreenVenues[i].name?.match(new RegExp(query, regexFlag))){
+                    highlights.push( { type: 'Feature', geometry: onscreenVenues[i].geometry, id: 0 });
+                    placesHighlighted.ids.push(onscreenVenues[i].id);
                 }
-                else if(onscreenVenues[i].attributes.aliases){
-                    let aliases = onscreenVenues[i].attributes.aliases;
+                else if(onscreenVenues[i].aliases){
+                    let aliases = onscreenVenues[i].aliases;
                     for(let j=0; j< aliases.length; j++){
                         if(aliases[j].match(new RegExp(query, regexFlag))){
-                            highlights.push(new OpenLayers.Feature.Vector(onscreenVenues[i].getOLGeometry().clone(), {}));
-                            placesHighlighted.push(onscreenVenues[i]);
+                            highlights.push( { type: 'Feature', geometry: onscreenVenues[i].geometry, id: 0 });
+                            placesHighlighted.ids.push(onscreenVenues[i].id);
                             break;
                         }
                     }
@@ -178,49 +211,39 @@
             }
 
             if($('#WMEES_regexCounts').length === 0){
-                // adding the regexCounts div is not working. not sure where it needs to go and how to attach.
-                // top:${$(`${searchBoxTarget}`).height()};
-                const counts = `<div id="WMEES_regexCounts" class="fa" style="background-color:white; width:100%; font-size:14px;"><span id="WMEES_roadcount" style="cursor:pointer;" class="fa-road">0</span><span id="WMEES_placecount" style="margin-left:8px; cursor:pointer;" class="fa-map-marker">0</span></div>`;
-                const el = $(`${searchBoxTarget}`)[0].shadowRoot.querySelector('#text-input');
-                $(el).append(counts);
+                const counts = `<div id="WMEES_regexCounts" class="fa" style="background-color:white; top:${$(`${searchBoxTarget}`).height()}; width:100%; font-size:14px;"><span id="WMEES_roadcount" style="cursor:pointer;" class="fa-road">0</span><span id="WMEES_placecount" style="margin-left:8px; cursor:pointer;" class="fa-map-marker">0</span></div>`;
+                //const el = $(`${searchBoxTarget}`)[0];
+                const el = $('.secondary-toolbar')[0];
+                $(el).prepend(counts);
                 $('#WMEES_placecount').click(function(){
-                    if(placesHighlighted.length > 0)
-                       W.selectionManager.setSelectedModels(placesHighlighted);
+                    if(placesHighlighted.ids.length > 0)
+                        wmeSDK.Editing.setSelection( { selection: placesHighlighted } );
                 });
 
                 $('#WMEES_roadcount').click(function(){
-                    if(segmentsHighlighted.length > 0)
-                        W.selectionManager.setSelectedModels(segmentsHighlighted);
+                    if(segmentsHighlighted.ids.length > 0)
+                        wmeSDK.Editing.setSelection( { selection: segmentsHighlighted } );
                 });
             }
 
-            $('#WMEES_placecount').html(placesHighlighted.length);
-            $('#WMEES_roadcount').html(segmentsHighlighted.length);
+            $('#WMEES_placecount').html(placesHighlighted.ids.length);
+            $('#WMEES_roadcount').html(segmentsHighlighted.ids.length);
 
-            if(highlights.length > 0){
-                if(!WMEESLayer)
-                    WMEESLayer = new OpenLayers.Layer.Vector("WME_Enhanced_Search",{displayInLayerSwitcher: false, uniqueName: "__WME_Enhanced_Search", styleMap: new OpenLayers.StyleMap(style)});
-
-                WMEESLayer.removeAllFeatures();
-                WMEESLayer.addFeatures(highlights);
-                if(W.map.getLayersByName(["WME_Enhanced_Search"]).length === 0)
-                    W.map.addLayer(WMEESLayer);
+            if(highlights.length > 0) {
+                wmeSDK.Map.removeAllFeaturesFromLayer( { layerName: scriptName });
+                wmeSDK.Map.addFeaturesToLayer( { features: highlights, layerName: scriptName });
                 }
-            else
-                if(WMEESLayer && WMEESLayer.features.length>0){
-                    WMEESLayer.removeAllFeatures();
-                    WazeWrap.Events.unregister('moveend', window, regexHighlight);
-                    WazeWrap.Events.unregister('zoomend', window, regexHighlight);
-                    //$('#WMEES_regexCounts').remove();
+            else {
+                wmeSDK.Map.removeAllFeaturesFromLayer({ layerName: scriptName });
+                WazeWrap.Events.unregister('moveend', window, regexHighlight);
+                WazeWrap.Events.unregister('zoomend', window, regexHighlight);
+                //$('#WMEES_regexCounts').remove();
                 }
         }
         else{
             WazeWrap.Events.unregister('moveend', window, regexHighlight);
             WazeWrap.Events.unregister('zoomend', window, regexHighlight);
-            if(WMEESLayer){
-                WMEESLayer.removeAllFeatures();
-                W.map.removeLayer(WMEESLayer);
-            }
+            wmeSDK.Map.removeAllFeaturesFromLayer({ layerName: scriptName });
             $('#WMEES_regexCounts').remove();
         }
     }
@@ -239,6 +262,7 @@
 
     async function parsePaste(pasteVal){
         let processed = false;
+        let selection = { ids: [] };
         if(pasteVal.match(regexs.wazeurl)){
             let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom(?:Level)?=(\d+)/);
             let lon = pasteVal.match(/lon=(-?\d*.\d*)/)[1];
@@ -273,18 +297,10 @@
             if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
                 if(!$('#layer-switcher-group_issues_tracker').prop('checked'))
                     $('#layer-switcher-group_issues_tracker').click();
-                //if(!$('#layer-switcher-group_map_issues').prop('checked'))
-                //    $('#layer-switcher-group_map_issues').click();
-                //if(!$('#layer-switcher-item_update_requests').prop('checked'))
-                //    $('#layer-switcher-item_update_requests').click();
             }
             if(pasteVal.match(/&mapProblem=(\d%2[a-zA-Z]\d*)/)){
                 if(!$('#layer-switcher-group_issues_tracker').prop('checked'))
                     $('#layer-switcher-group_issues_tracker').click();
-                //if(!$('#layer-switcher-group_map_issues').prop('checked'))
-                //    $('#layer-switcher-group_map_issues').click();
-                //if(!$('#layer-switcher-item_map_problems').prop('checked'))
-                //    $('#layer-switcher-item_map_problems').click();
             }
             if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
                 if(!$('#layer-switcher-group_display').prop('checked'))
@@ -298,34 +314,33 @@
             }
 
             WazeWrap.Model.onModelReady(async function(){
-                // wait for map features loaded
-                for (let j=0; j<100; j++) {
-                    const ldf = W.app.layout.model.attributes.loadingFeatures;
-                    if (!ldf) break;
-                    await new Promise(r => setTimeout(r,200));
-                }
+                await waitFeaturesLoaded();
                 //Check for selected objects
-                let selectObjs = [];
                 if(pasteVal.match(/&segments=(.*?)(?:$|&)/)){
                     let segs = pasteVal.match(/&segments=(.*?)(?:$|&)/)[1];
                     segs = segs.split(',');
+                    selection.objectType = "segment";
                     for(let i=0; i <segs.length; i++) {
-                        const s = W.model.segments.getObjectById(segs[i]);
-                        if (s) { selectObjs.push(s); }
+                        const s = wmeSDK.DataModel.Segments.getById( { segmentId: +segs[i] } );
+                        if (s) { selection.ids.push(+segs[i]); }
                     }
                 }
                 if(pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)){
                     let segs = pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)[1];
+                    selection.objectType = "segmentSuggestion";
                     segs = segs.split(',');
                     for(let i=0; i <segs.length; i++)
-                        selectObjs.push(W.model.segmentSuggestions.getObjectById(segs[i]));
+                        if (W.model.segmentSuggestions.getObjectById(segs[i])) { selection.ids.push(+segs[i]); }
                 }
 
                 if(pasteVal.match(/&venues=(.*?)(?:&|$)/)){
                     let venues = pasteVal.match(/&venues=(.*?)(?:&|$)/)[1];
                     venues = venues.split(',');
-                    for(let i=0; i <venues.length; i++)
-                        selectObjs.push(W.model.venues.getObjectById(venues[i]));
+                    selection.objectType = "venue";
+                    for(let i=0; i <venues.length; i++) {
+                        const v = wmeSDK.DataModel.Venues.getById( { venueId: venues[i] } );
+                        if (v) { selection.ids.push(venues[i]); }
+                    }
                 }
 
                 if(pasteVal.match(/&mapUpdateRequest=(\d*)/)){
@@ -346,20 +361,24 @@
                 }
 
                 if(pasteVal.match(/&mapComments=(.*)(?:&|$)/)){
-                    let mc = pasteVal.match(/&mapComments=(.*)(?:&|$)/)[1];
-                    selectObjs.push(W.model.mapComments.getObjectById(`${mc}`));
+                    const mc = pasteVal.match(/&mapComments=(.*)(?:&|$)/)[1];
+                    const m = wmeSDK.DataModel.MapComments.getById( { mapCommentId: mc } );
+                    selection.objectType = "mapComment";
+                    if (m) { selection.ids.push(mc); }
                 }
 
                 if(pasteVal.match(/&permanentHazards=(\d*)/)){
                     const hzid = pasteVal.match(/&permanentHazards=(\d*)/)[1];
-                    const hzo = W.model.permanentHazards.getObjectById(hzid);
-                    if (hzo != null) {
-                       selectObjs.push(hzo)
-                    }
+                    selection.objectType = "permanentHazard";
+                    // SDK - need way to verify its a valid hazard on screen
+                    //const h = wmeSDK.DataModel.PermanentHazards.getById( { xxxId: +hzid } );
+                    selection.ids.push(+hzid);
+
                 }
 
-                if(selectObjs.length > 0)
-                    W.selectionManager.setSelectedModels(selectObjs);
+                if (selection.ids.length > 0 ) {
+                    wmeSDK.Editing.setSelection( { selection } );
+                }
 
                 setTimeout(() => {$(`${searchBoxTarget}`)[0].value = '';}, 100);
             }, true, this);
@@ -457,24 +476,25 @@
             }
         }
         else if(pasteVal.match(/\d*\.\d*\.\d*/)){ //Waze Place/mapComment id pasted directly
-            let landmark = W.model.venues.getObjectById(pasteVal);
-            let mapcomment = W.model.mapComments.getObjectById(pasteVal);
-            if(landmark){
-                W.selectionManager.setSelectedModels(landmark);
+            const landmark = wmeSDK.DataModel.Venues.getById( { venueId: pasteVal } );
+            const mapcomment = wmeSDK.DataModel.MapComments.getById( { mapCommentId: pasteVal } );
+            if (landmark) {
+                wmeSDK.Editing.setSelection( { selection: { ids: [pasteVal], objectType: 'venue' } } )
                 processed = true;
             }
             else if(mapcomment){
-                W.selectionManager.setSelectedModels(mapcomment);
+                wmeSDK.Editing.setSelection( { selection: { ids: [pasteVal], objectType: 'mapComment' } } )
                 processed = true;
             }
             else{ //use segmentFinder to find the venue, jump there & select
                 try{
-                    let result = await WazeWrap.Util.findVenue(W.app.getAppRegionCode(), pasteVal);
+                    let result = await WazeWrap.Util.findVenue(wmeSDK.Settings.getRegionCode(), pasteVal);
                     if(result){
                         jump4326(result.x, result.y, 18); //jumping to z18 to try and ensure all places are on screen, without zooming out too far
-                        WazeWrap.Model.onModelReady(function(){
+                        WazeWrap.Model.onModelReady(async function(){
+                            await waitFeaturesLoaded();
                             $(`${searchBoxTarget}`)[0].value = '';
-                            W.selectionManager.setSelectedModels(W.model.venues.getObjectById(pasteVal));
+                            wmeSDK.Editing.setSelection( { selection: { ids: [pasteVal], objectType: 'venue' } } )
                         }, true, this);
                     }
                 }
@@ -485,30 +505,28 @@
         }
         else if(pasteVal.match(regexs.segmentid)){
             let segsArr = pasteVal.split(',');
-            let segsObjs = [];
-            for(let i=0; i <segsArr.length; i++){
-                let seg = W.model.segments.getObjectById(segsArr[i])
-                if(seg)
-                    segsObjs.push(seg);
+            selection.objectType = "segment";
+            for(let i=0; i <segsArr.length; i++) {
+                const s = wmeSDK.DataModel.Segments.getById( { segmentId: +segsArr[i] } );
+                if (s) { selection.ids.push(+segsArr[i]); }
             }
-            if(segsObjs.length > 0){
-                W.selectionManager.setSelectedModels(segsObjs);
-                processed = true;
+            if (selection.ids.length > 0 ) {
+                wmeSDK.Editing.setSelection( { selection } );
             }
             else{
                 //Couldn't find segment(s) - try to locate the first one and then select them all
                 try{
-                    let result = await WazeWrap.Util.findSegment(W.app.getAppRegionCode(), segsArr[0]); //await $.get(`https://w-tools.org/api/SegmentFinder?find=${segsArr[0]}`);
+                    let result = await WazeWrap.Util.findSegment(wmeSDK.Settings.getRegionCode(), segsArr[0]); //await $.get(`https://w-tools.org/api/SegmentFinder?find=${segsArr[0]}`);
                     if(result){
                         jump4326(result.x, result.y, 18); //jumping to z18 to try and ensure all segments are on screen, without zooming out too far
-                        WazeWrap.Model.onModelReady(() =>{
-                            for(let i=0; i <segsArr.length; i++){
-                                let seg = W.model.segments.getObjectById(segsArr[i])
-                                if(seg)
-                                    segsObjs.push(seg);
+                        WazeWrap.Model.onModelReady(async () =>{
+                            await waitFeaturesLoaded();
+                            for(let i=0; i <segsArr.length; i++) {
+                                const s = wmeSDK.DataModel.Segments.getById( { segmentId: +segsArr[i] } );
+                                if (s) { selection.ids.push(+segsArr[i]); }
                             }
                             $(`${searchBoxTarget}`)[0].value = '';
-                            W.selectionManager.setSelectedModels(segsObjs);
+                            wmeSDK.Editing.setSelection( { selection } );
                         }, true, this);
                     }
                 }
@@ -522,17 +540,33 @@
             setTimeout(function(){$(`${searchBoxTarget}`)[0].value = '';}, 50);
     }
 
-    function jump900913(lon, lat, zoom){
-        W.map.setCenter(new OpenLayers.Geometry.Point(lon, lat));
-        if(zoom)
-            W.map.getOLMap().zoomTo(zoom);
+    async function waitFeaturesLoaded() {
+        var count = 1;
+        return new Promise(function (resolve) {
+            var interval = setInterval(function () {
+                const ldf = W.app.layout.model.attributes.loadingFeatures; // SDK - need access to this status
+                count++;
+
+                if (!ldf) {
+                    clearInterval(interval);
+                    resolve(null);
+                }
+                else if (count > 100) {
+                    clearInterval(interval);;
+                    console.warn('ESrch - timeout waiting for features loaded');
+                    resolve(null)
+                }
+            }, 100);
+        });
     }
 
     function jump4326(lon, lat, zoom){
-        var xy = WazeWrap.Geometry.ConvertTo900913(lon, lat);
-        W.map.setCenter(xy);
+        const lonLat = { lat: +lat, lon: +lon };
         if(zoom)
-            W.map.getOLMap().zoomTo(zoom);
+            wmeSDK.Map.setMapCenter({ lonLat, zoomLevel: zoom} );
+        else
+            wmeSDK.Map.setMapCenter({ lonLat} );
+
     }
 
 })();
