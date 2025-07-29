@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2025.06.28.01
+// @version          2025.07.29.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -12,6 +12,7 @@
 // @exclude          https://www.waze.com/discuss/*
 // @grant            none
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
+// @require          https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js
 // @contributionURL  https://github.com/WazeDev/Thank-The-Authors
 // @downloadURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.user.js
 // @updateURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.meta.js
@@ -23,6 +24,7 @@
 /* global _ */
 /* global WazeWrap */
 /* global require */
+/* global turf */
 /* eslint curly: ["warn", "multi-or-nest"] */
 
 (function() {
@@ -110,33 +112,10 @@
         $(`${searchBoxTarget}`).keyup(regexHighlight);
     }
 
-    function ptInRect(x,y,xmin,xmax,ymin,ymax) {
-        return (x>=xmin && x<=xmax && y>=ymin && y<=ymax);
-    }
     function onScreen(obj) {
-        const bb = wmeSDK.Map.getMapExtent();
-        let xmin,xmax,ymin,ymax;
-        if (bb[0] < bb[2]) { xmin = bb[0]; xmax = bb[2]; }
-        else { xmin = bb[2]; xmax = bb[0]; }
-        if (bb[1] < bb[3]) { ymin = bb[1]; ymax = bb[3]; }
-        else { ymin = bb[3]; ymax = bb[1]; }
-        const g = obj.geometry;
-        if (g?.type == 'Point') {
-            const rc = ptInRect(g.coordinates[0],g.coordinates[1],xmin,xmax,ymin,ymax)
-            return rc;
-        }
-        else if (g?.type == 'Polygon') {
-            const poly = g.coordinates[0];
-            for (let p = 0; p < poly.length; p++) {
-                const rc = ptInRect(poly[p][0],poly[p][1],xmin,xmax,ymin,ymax)
-                if (rc) {
-                    return rc;
-                }
-            }
-        }
-        else if (obj.getOLGeometry)
-            return(W.map.getOLExtent().intersectsBounds(obj.getOLGeometry().getBounds()));
-        return(false);
+        const bbPoly = turf.bboxPolygon(wmeSDK.Map.getMapExtent());
+        return turf.booleanIntersects(obj.geometry,bbPoly);
+
     }
 
     let placesHighlighted = { ids: [], objectType: "venue" };
@@ -329,8 +308,9 @@
                     let segs = pasteVal.match(/&segmentSuggestions=(.*?)(?:$|&)/)[1];
                     selection.objectType = "segmentSuggestion";
                     segs = segs.split(',');
-                    for(let i=0; i <segs.length; i++)
+                    for(let i=0; i <segs.length; i++) {
                         if (W.model.segmentSuggestions.getObjectById(segs[i])) { selection.ids.push(+segs[i]); }
+                    }
                 }
 
                 if(pasteVal.match(/&venues=(.*?)(?:&|$)/)){
@@ -540,6 +520,11 @@
             setTimeout(function(){$(`${searchBoxTarget}`)[0].value = '';}, 50);
     }
 
+/* waitFeaturesLoaded
+   when the map is moved and data needs to be loaded for the newly displayed area, WME makes a "Features" call to get specified
+   map data to be displayed. When the features call is made, the "loadingFeatures" flag is set true and will turn false when the
+   Features data is received and processed into the map data model.
+*/
     async function waitFeaturesLoaded() {
         var count = 1;
         return new Promise(function (resolve) {
