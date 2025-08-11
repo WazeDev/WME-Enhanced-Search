@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2025.07.29.01
+// @version          2025.08.11.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -10,7 +10,9 @@
 // @match            https://beta.waze.com/*/editor*
 // @exclude          https://www.waze.com/*user/editor*
 // @exclude          https://www.waze.com/discuss/*
-// @grant            none
+// @grant            GM_xmlhttpRequest
+// @grant            unsafeWindow
+// @connect          c.gle
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @require          https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js
 // @contributionURL  https://github.com/WazeDev/Thank-The-Authors
@@ -32,12 +34,12 @@
 
     const scriptName = 'Enhanced Search';
     const scriptId = 'enh-search';
-    const updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL.";
+    const updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL. Handle link from UR emails.";
 
     var searchBoxTarget = "#search-autocomplete";
 
     let wmeSDK;
-    window.SDK_INITIALIZED.then(() => {
+    unsafeWindow.SDK_INITIALIZED.then(() => {
         wmeSDK = getWmeSdk({ scriptId, scriptName });
         wmeSDK.Events.once({ eventName: 'wme-ready' }).then(async () => {
             for (let initCount = 1; initCount <= 100; initCount++) {
@@ -92,6 +94,7 @@
         'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
         'livemapshareurl' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/.*\\?latlng=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
         'ohgo': new RegExp('(?:http(?:s):\\/\\/)?(?:www\\.)?ohgo\\.com\\/.*\\?lt=(-?\\d*.\\d*)&ln=(-?\\d*.\\d*)&z=(\\d+)'),
+        'viewissue': new RegExp('(?:http(?:s):\\/\\/)?(?:www\\.)?c\\.gle\\/([-a-zA-Z0-9]*)'),
    };
 
     function enhanceSearch(){
@@ -115,7 +118,6 @@
     function onScreen(obj) {
         const bbPoly = turf.bboxPolygon(wmeSDK.Map.getMapExtent());
         return turf.booleanIntersects(obj.geometry,bbPoly);
-
     }
 
     let placesHighlighted = { ids: [], objectType: "venue" };
@@ -142,23 +144,27 @@
             placesHighlighted.ids = [];
             segmentsHighlighted.ids = [];
 
-            let onscreenSegments = WazeWrap.Model.getOnscreenSegments();
+            let onscreenSegments = [];
+            $.each(wmeSDK.DataModel.Segments.getAll(), function(k, v){
+                if(onScreen(v))
+                    onscreenSegments.push(v);
+            });
+
             for(let i = 0; i < onscreenSegments.length; i++){
-                const seg = wmeSDK.DataModel.Segments.getById({ segmentId: onscreenSegments[i].attributes.id });
-                if(onscreenSegments[i].attributes.primaryStreetID){
-                    const st = wmeSDK.DataModel.Streets.getById( { streetId: onscreenSegments[i].attributes.primaryStreetID } );
+                if(onscreenSegments[i].primaryStreetId){
+                    const st = wmeSDK.DataModel.Streets.getById( { streetId: onscreenSegments[i].primaryStreetId } );
                     if(st?.name?.match(new RegExp(query, regexFlag))){
-                        highlights.push( { type: 'Feature', geometry: seg.geometry, id: onscreenSegments[i].attributes.id });
-                        segmentsHighlighted.ids.push(onscreenSegments[i].attributes.id);
+                        highlights.push( { type: 'Feature', geometry: onscreenSegments[i].geometry, id: onscreenSegments[i].id });
+                        segmentsHighlighted.ids.push(onscreenSegments[i].id);
                     }
                     else{
-                        if(onscreenSegments[i].attributes.streetIDs){
-                            let alts = onscreenSegments[i].attributes.streetIDs;
+                        if(onscreenSegments[i].alternateStreetIds){
+                            let alts = onscreenSegments[i].alternateStreetIds;
                             for(let j=0; j < alts.length; j++){
                                 const altSt = wmeSDK.DataModel.Streets.getById( { streetId: alts[j] } );
                                 if(altSt?.name?.match(new RegExp(query, regexFlag))){
-                                    highlights.push( { type: 'Feature', geometry: seg.geometry, id: onscreenSegments[i].attributes.id });
-                                    segmentsHighlighted.ids.push(onscreenSegments[i].attributes.id);
+                                    highlights.push( { type: 'Feature', geometry: onscreenSegments[i].geometry, id: onscreenSegments[i].id });
+                                    segmentsHighlighted.ids.push(onscreenSegments[i].id);
                                     break;
                                 }
                             }
@@ -166,6 +172,7 @@
                     }
                 }
             }
+
             let onscreenVenues = [];
             $.each(wmeSDK.DataModel.Venues.getAll(), function(k, v){
                 if(onScreen(v))
@@ -242,7 +249,20 @@
     async function parsePaste(pasteVal){
         let processed = false;
         let selection = { ids: [] };
-        if(pasteVal.match(regexs.wazeurl)){
+        if(pasteVal.match(regexs.viewissue)){
+            // the View Issue link in new UR emails is a c.gle URL. Fetch that to get the finalUrl, which should be a WME PL
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: pasteVal,
+                onload: function(res) {
+                    parsePaste(res.finalUrl);
+                },
+                onError: function(err) {
+                    console.error('ES req: ' + err); }
+            });
+            processed = true;
+        }
+        else if(pasteVal.match(regexs.wazeurl)){
             let params = pasteVal.match(/lon=(-?\d*.\d*)&lat=(-?\d*.\d*)&zoom(?:Level)?=(\d+)/);
             let lon = pasteVal.match(/lon=(-?\d*.\d*)/)[1];
             let lat = pasteVal.match(/lat=(-?\d*.\d*)/)[1];
