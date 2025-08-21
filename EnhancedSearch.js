@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             WME Enhanced Search
 // @namespace        https://greasyfork.org/en/users/166843-wazedev
-// @version          2025.08.11.01
+// @version          2025.08.21.01
 // @description      Enhances the search box to parse WME PLs and URLs from other maps to move to the location & zoom
 // @author           WazeDev
 // @match            https://www.waze.com/editor*
@@ -16,8 +16,8 @@
 // @require          https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 // @require          https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js
 // @contributionURL  https://github.com/WazeDev/Thank-The-Authors
-// @downloadURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.user.js
-// @updateURL https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.meta.js
+// @downloadURL      https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.user.js
+// @updateURL        https://update.greasyfork.org/scripts/381111/WME%20Enhanced%20Search.meta.js
 // ==/UserScript==
 
 /* global W */
@@ -34,7 +34,7 @@
 
     const scriptName = 'Enhanced Search';
     const scriptId = 'enh-search';
-    const updateMessage = "Fix selecting items on WME PL paste. Fixed Regex highlighting. Added handling of hazards on PL. Handle link from UR emails.";
+    const updateMessage = "Removing What3Words handling - free support is no longer offered.";
 
     var searchBoxTarget = "#search-autocomplete";
 
@@ -84,11 +84,9 @@
         'openstreetmapurl': new RegExp('(?:http(?:s):\/\/)?(?:www)?openstreetmap\.org\/(?:.*?\/)?#map[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*'),
         'openstreetmapurlold': new RegExp('(?:http(?:s):\\/\\/)?(?:www)?openstreetmap\\.org\\/index\\.html\\?mlat=(-?\\d*.\\d*)&mlon=(-?\\d*.\\d*)&zoom=(\\d+)'),
         'pluscodeurl': new RegExp('(?:http(?:s):\\/\\/)?plus\\.codes\\/([a-zA-Z0-9+]*)'),
-        'what3wordsurl': new RegExp('(?:http(?:s):\\/\\/)?(?:w3w\\.co|map\\.what3words\\.com)\\/(.*\\..*\\..*)', "ig"),
         'place_mc_id': new RegExp('\d*\.\d*\.\d*', "ig"),
         'segmentid': new RegExp('\d*'),
         'mandrillappurl': new RegExp('(?:http(?:s):\/\/)?(?:www\.)?mandrillapp\.com\/(?:.*?\/)?www\.waze\.com[-a-zA-Z0-9@:%_\+,.~#?&\/\/=]*_(.*)', "ig"),
-        'what3wordcode': new RegExp('[a-z]*\.[a-z]*\.[a-z]*', "ig"),
         'pluscode': new RegExp('[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{0,2}'),
         'regexHighlight': new RegExp('^(\\/.*?\\/i?)'),
         'livemapshareurlold' : new RegExp('(?:http(?:s):\\/\\/)?www.waze\\.com\/ul\\?ll=(-?\\d*.\\d*)(?:(?:%2C)|,)(-?\\d*.\\d*).*'),
@@ -429,16 +427,6 @@
             jump4326(params[2], params[1], params[3]);
             processed = true;
         }
-        else if(pasteVal.match(regexs.what3wordsurl)){
-            try{
-                let words = pasteVal.match(regexs.what3wordsurl)[1];
-                let result = await $.get(`https://api.what3words.com/v3/convert-to-coordinates?words=${words}&key=7ZWY99SE`);
-                jump4326(result.coordinates.lng, result.coordinates.lat);
-                processed = true;
-            }catch(err){
-                alert("The three word address provided is not valid");
-            }
-        }
         else if(pasteVal.match(regexs.pluscodeurl)){
             let code = pasteVal.match(regexs.pluscodeurl)[1];
             try{
@@ -465,15 +453,6 @@
             let url = atob(decoded).split(",")[0];
             processed = true;
             parsePaste(`https://www.waze.com/editor/${url}`);
-        }
-        else if(pasteVal.match(/[a-z]*\.[a-z]*\.[a-z]*/)){ //What3words code pasted directly
-            try{
-                let result = await $.get(`https://api.what3words.com/v3/convert-to-coordinates?words=${pasteVal}&key=7ZWY99SE`);
-                jump4326(result.coordinates.lng, result.coordinates.lat);
-                processed = true;
-            }catch(err){
-                alert("The three word address provided is not valid");
-            }
         }
         else if(pasteVal.match(/\d*\.\d*\.\d*/)){ //Waze Place/mapComment id pasted directly
             const landmark = wmeSDK.DataModel.Venues.getById( { venueId: pasteVal } );
